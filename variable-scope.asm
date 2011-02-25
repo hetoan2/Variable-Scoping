@@ -1,7 +1,10 @@
 /*zoom modifier ASM by hetoan2*/
 
-.set rambase,0x81656000	# don't mess with unless you know what you're doing!
+.long 0x20A2EEA4, 0x00000001	# fix for wifi bug
+
+.set rambase,0x81656000			# don't mess with unless you know what you're doing!
 .set activator,0x80200F0A
+
 # comment the line below (add # to the front) to use WiiMote + Nunchuck
 .set ccpro,1
 .ifndef ccpro
@@ -9,8 +12,8 @@
 .endif
 
 #button values
-.set buttoninc,0x2001	# increase zoom button
-.set buttondec,0x6000	# decrease zoom button
+.set buttoninc,0x2001	# increase zoom button (L + up)
+.set buttondec,0x6000	# decrease zoom button (L + down)
 
 .int rambase<<7>>7|0x04000008
 .float .05				# increment speed variable
@@ -151,3 +154,5 @@ blr						#necessary for C0 codetype!!!
 end3:
 .int align
 .balignl 8,0
+
+.long 0xE0000000, 80008000
