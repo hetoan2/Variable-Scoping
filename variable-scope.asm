@@ -1,6 +1,6 @@
 /*zoom modifier ASM by hetoan2*/
 
-.long 0x214EDC14, 0x0000000C	#fix for wifi bug
+.long 0x214EB1F4, 0x0000000C	#fix for wifi bug
 
 .set rambase,0x81656000			#don't mess with unless you know what you're doing!
 .set activator,0x80200F0A
@@ -23,7 +23,7 @@
 .int rambase<<7>>7|0x04000010
 .float 15				#maximum zoom variable
 
-.set codeaddress,0x8074B810
+.set codeaddress,0x8074F640
 .set length,end1-start1
 .set align,(length%8==0)*-0x60000000
 .set numlines,(length+4)/8+(length%8==0)*-1
@@ -57,7 +57,7 @@ end1:
 #after: stw r0,68(r29)
 #part deux
 #before: stw r4,80(r29)
-.set codeaddress,0x8074B834
+.set codeaddress,0x8074F664
 
 .set length,end2-start2
 .set align,(length%8==0)*-0x60000000
@@ -117,7 +117,7 @@ cmpwi r31,buttondec+buttonscope
 beq do_glow
 b skip_glow
 
-.set baseglow,0x8144EC20
+.set baseglow,0x8144BF60
 .set glowred,0x3F24A4A0
 .set glowgreen,0x3D007FED
 .set glowblue,0x3C007FED
