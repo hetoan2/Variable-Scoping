@@ -11,6 +11,8 @@
 .set activator,0x80200EE0
 .endif
 
+.set color,0xF02311		#this is the highlighted color when scoped!
+
 #button values
 .set buttonscope,0x2000	#scope button (L)
 .set buttoninc,0x0001	#increase zoom button (up)
@@ -22,6 +24,24 @@
 .float 1				#minimum zoom variable
 .int rambase<<7>>7|0x04000010
 .float 15				#maximum zoom variable
+
+/*-------------------------------------------------------------------------------*/
+.macro fcfid freg1,freg2,reg1
+
+stfd \freg2,-8(r1)
+xoris \reg1,\reg1,0x8000
+stw \reg1,-4(r1)
+lfd \freg1,-8(r1)
+fsub \freg1,\freg1,\freg2
+
+.endm
+/*---------------fcfid pneumonic courtesy of Y.S.--------------------------------*/
+
+.set savedLR,14
+.set magic,15
+/*FPR storage*/
+.set const_magic,16
+.set const_255,15
 
 .set codeaddress,0x8074F640
 .set length,end1-start1
@@ -104,6 +124,7 @@ start3:
 
 stwu r1,-80(r1)			#allocate room for r14-r31
 stmw r14,8(r1)			#load r14-r31 into stackframe
+mflr savedLR
 
 lis r30,activator@h
 ori r30,r30,activator@l
@@ -118,25 +139,48 @@ beq do_glow
 b skip_glow
 
 .set baseglow,0x8144BF60
-.set glowred,0x3F24A4A0
-.set glowgreen,0x3D007FED
-.set glowblue,0x3C007FED
+
+.set red,color>>16
+.set green,color>>8&255
+.set blue,color&255
+
+.if red==0
+.set red,1
+.endif
+
+.set redreg,20
+.set greenreg,21
+.set bluereg,22
 
 do_glow:
+
+bl _data_end
+.double 4503601774854144
+.float 255
+_data_end:
+
+mflr magic
+
+lfd const_magic,0(magic)
+lfs const_255,8(magic)
+
 lis r24,baseglow@h
 ori r24,r24,baseglow@l
 li r23,0
 startglow:
-lis r20,glowred@h
-ori r20,r20,glowred@l
-lis r21,glowgreen@h
-ori r21,r21,glowgreen@l
-lis r22,glowblue@h
-ori r21,r21,glowblue@l
-addi r23,r23,1
-stw r20,0(r24)
-stw r21,0x10(r24)
-stw r22,0x20(r24)
+li redreg,red
+li greenreg,green
+li bluereg,blue
+fcfid redreg,const_magic,redreg
+fdiv redreg,redreg,const_255
+fcfid greenreg,const_magic,greenreg
+fdiv greenreg,greenreg,const_255
+fcfid bluereg,const_magic,bluereg
+fdiv bluereg,bluereg,const_255
+addi r23,r23,1			#counter
+stfs redreg,0(r24)
+stfs greenreg,0x10(r24)
+stfs bluereg,0x20(r24)
 addi r24,r24,0x78		#offset to next player
 cmpwi r23,9
 blt startglow			#loop for all 9 players
@@ -179,6 +223,7 @@ forceseth:
 stfs f25,4(r17)
 
 popstackframe:
+mtlr savedLR
 lmw r14,8(r1)			#read registers r14 to r31 from stack 
 addi r1,r1,80			#free stackframe
 
