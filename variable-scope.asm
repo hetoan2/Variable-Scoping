@@ -11,21 +11,21 @@
 .set activator,0x80200EE0
 .endif
 
-.set color,0xF02311		#this is the highlighted color when scoped!
+.set color,0xF02311			#this is the highlighted color when scoped!
 
 #button values
-.set buttonscope,0x2000	#scope button (L)
-.set buttoninc,0x0001	#increase zoom button (up)
-.set buttondec,0x4000	#decrease zoom button (down)
+.set buttonscope,0x2000		#scope button (L)
+.set buttoninc,0x0001		#increase zoom button (up)
+.set buttondec,0x4000		#decrease zoom button (down)
 
 .int rambase<<7>>7|0x04000008
-.float .05				#increment speed variable
+.float .05					#increment speed variable
 .int rambase<<7>>7|0x0400000C
-.float 1				#minimum zoom variable
+.float 1					#minimum zoom variable
 .int rambase<<7>>7|0x04000010
-.float 15				#maximum zoom variable
+.float 15					#maximum zoom variable
 
-/*-------------------------------------------------------------------------------*/
+/*-------------------------------fcfid pneumonic---------------------------------*/
 .macro fcfid freg1,freg2,reg1
 
 stfd \freg2,-8(r1)
@@ -35,7 +35,21 @@ lfd \freg1,-8(r1)
 fsub \freg1,\freg1,\freg2
 
 .endm
-/*---------------fcfid pneumonic courtesy of Y.S.--------------------------------*/
+/*------------------------fcfid pneumonic courtesy of Y.S.-----------------------*/
+
+/*------------------------------stackframe macro---------------------------------*/
+.macro mstack
+stwu r1,-80(r1)				#allocate room for r14-r31
+stmw r14,8(r1)				#load r14-r31 into stackframe
+.endm
+/*-------------------------------------------------------------------------------*/
+
+/*-------------------------------popstack macro----------------------------------*/
+.macro pstack
+lmw r14,8(r1)				#read registers r14 to r31 from stack 
+addi r1,r1,80				#free stackframe
+.endm
+/*-------------------------------------------------------------------------------*/
 
 .set savedLR,14
 .set magic,15
@@ -43,41 +57,65 @@ fsub \freg1,\freg1,\freg2
 .set const_magic,16
 .set const_255,15
 
-.set codeaddress,0x8074F640
+.set codeaddress,0x8074F674
 .set length,end1-start1
 .set align,(length%8==0)*-0x60000000
 .set numlines,(length+4)/8+(length%8==0)*-1
 .int codeaddress<<7>>7|0xC2000000
 .int numlines
 
-.set fdefy,0x3F969DC1	#sets default y value zoom (may need changing if issues occur)
+.set fdefy,0x3F969DC1		#sets default y value zoom (may need changing if issues occur)
 .set fbase,17
 
 start1:
 lis fbase,fdefy@h
 ori fbase,fbase,fdefy@l
-cmpw fbase,r4			#contains current zoom level
-beq skip				#skip if not scoped
-lis fbase,rambase@h		#load rambase
+cmpw fbase,r4				#contains current zoom level
+beq skip					#skip if not scoped
+lis fbase,rambase@h			#load rambase
 ori fbase,fbase,rambase@l
-stw r4,0(fbase)			#store current zoom
-lfs f20,0(fbase)		#load as float
-lwz r18,4(fbase)		#load zoommult
-stw r18,0(fbase)		#store zoommult
-lfs f21,0(fbase)		#load as float
-fmuls f20,f20,f21		#multiply current zoom by zoommult
-stfs f20,0(fbase)		#store newfloat to rambase
-lwz r4,0(fbase)			#override current
+stw r4,0(fbase)				#store current zoom
+lfs f20,0(fbase)			#load as float
+lwz r18,4(fbase)			#load zoommult
+stw r18,0(fbase)			#store zoommult
+lfs f21,0(fbase)			#load as float
+fmuls f20,f20,f21			#multiply current zoom by zoommult
+stfs f20,0(fbase)			#store newfloat to rambase
+lwz r4,0(fbase)				#override current
 skip:
-stw r4,64(r29)			#overridden asm to store
+stw r4,64(r29)				#overridden asm to store
 end1:
 .int align
 .balignl 8,0
 
+/*----zoomhook---*/
+.set zoomaddress,0x80377D04
+.int zoomaddress<<7>>7|0xC2000000
+.int numlines
+.set length,endzoom-zoomhook
+.set align,(length%8==0)*-0x60000000
+.set numlines,(length+4)/8+(length%8==0)*-1
+
+zoomhook:
+stw r6,1352(r3) 			#load r14-r31 into stackframe
+
+cmpwi r0,0x30
+bne end
+lis r17,rambase@h
+ori r17,r17,rambase@l
+stw r6,0x20(r17)
+
+end:
+endzoom:
+
+.int align
+.balignl 8,0
+/*--endzoomhook--*/
+
 #after: stw r0,68(r29)
 #part deux
 #before: stw r4,80(r29)
-.set codeaddress,0x8074F664
+.set codeaddress,0x8074F688
 
 .set length,end2-start2
 .set align,(length%8==0)*-0x60000000
@@ -85,7 +123,6 @@ end1:
 
 .int codeaddress<<7>>7|0xC2000000
 .int numlines
-
 
 start2:
 lis r17,0x4005
@@ -111,7 +148,7 @@ end2:
 .int align
 .balignl 8,0
 
-#controller start
+/*----controller watching----*/
 
 .set length,end3-start3
 .set align,(length%8==0)*-0x60000000
@@ -122,21 +159,19 @@ end2:
 
 start3:
 
-stwu r1,-80(r1)			#allocate room for r14-r31
-stmw r14,8(r1)			#load r14-r31 into stackframe
+mstack
 mflr savedLR
 
 lis r30,activator@h
 ori r30,r30,activator@l
-lhz r31,0(r30)			#load buttonpressed
+lhz r31,0(r30)				#load buttonpressed
 
-cmpwi r31,buttonscope
-beq do_glow
-cmpwi r31,buttoninc+buttonscope
-beq do_glow
-cmpwi r31,buttondec+buttonscope
-beq do_glow
-b skip_glow
+andi. r29,r31,buttonscope	#mask off the bit for the scope button
+beq- skip_glow				#eq means the button is not being held down, so don't highlight
+
+rlwinm. r29,r30,28,0,3		#mask off the index buttons, rotate the interesting bits to the front
+beq- skip_glow   			#eq means no index buttons held, so exit the code
+
 
 .set baseglow,0x8144BF60
 
@@ -224,8 +259,7 @@ stfs f25,4(r17)
 
 popstackframe:
 mtlr savedLR
-lmw r14,8(r1)			#read registers r14 to r31 from stack 
-addi r1,r1,80			#free stackframe
+pstack
 
 blr						#necessary for C0 codetype!!!
 
